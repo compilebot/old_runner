@@ -1,0 +1,15 @@
+version: 2
+jobs:
+  build:
+    docker:
+      - image: circleci/golang:1.9
+    working_directory: /go/src/github.com/gopherpun/runner
+    steps:
+      - run:
+        name: init ci
+        command: |
+          echo: 'init test'
+      #      - checkout
+      #
+      #      - run: go get -v -t -d ./...
+      #      - run: go test -v ./...
