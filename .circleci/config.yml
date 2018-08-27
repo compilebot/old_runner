@@ -8,7 +8,7 @@ jobs:
       - run:
         name: init ci
         command: |
-          echo: 'init test'
+          echo 'init test'
       #      - checkout
       #
       #      - run: go get -v -t -d ./...
