@@ -2,6 +2,8 @@ package main
 
 import (
 	"archive/tar"
+	"bytes"
+	"compress/gzip"
 	"context"
 	"fmt"
 	"io"
@@ -23,11 +25,10 @@ func main() {
 import "fmt"
 
 func main() {
-	for i := 0; i < 5000; i++ {
-		fmt.Println(i)
+	for i := 0; i < 100; i++ {
+		fmt.Println("hi", i)
 	}
 }`
-	_ = code
 	New(code)
 }
 
@@ -68,7 +69,12 @@ func buildImage(cli *client.Client) {
 		panic(err)
 	}
 	defer br.Body.Close()
-	fmt.Println(br, err)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(br.Body)
+	s := buf.String()
+	fmt.Println(s)
+	fmt.Println("end of buildimage")
 
 }
 
@@ -77,7 +83,11 @@ func createBuildContext() {
 	if err != nil {
 		panic(err)
 	}
-	tw := tar.NewWriter(file)
+
+	gzipWriter := gzip.NewWriter(file)
+	defer gzipWriter.Close()
+
+	tw := tar.NewWriter(gzipWriter)
 	defer tw.Close()
 
 	files := map[string][]byte{"Dockerfile": nil, "main.go": nil}
@@ -115,7 +125,10 @@ func cleanup(cli *client.Client, id string) error {
 }
 
 func writeCodeToFile(code string) error {
-	f, err := os.OpenFile("/home/jake/apps/gopherpun/runner/tmp/go/main.go", os.O_RDWR, 0777)
+	path := "/home/jake/apps/gopherpun/runner/tmp/go/main.go"
+	os.Remove(path)
+	os.Create(path)
+	f, err := os.OpenFile(path, os.O_RDWR, 0777)
 
 	if err != nil {
 		return err
