@@ -1,9 +1,12 @@
 package main
 
 import (
+	"archive/tar"
 	"context"
 	"fmt"
 	"io"
+	"io/ioutil"
+	"os"
 	"strings"
 	"time"
 
@@ -15,28 +18,121 @@ import (
 )
 
 func main() {
-	New()
+	code := `package main
+
+import "fmt"
+
+func main() {
+	for i := 0; i < 5000; i++ {
+		fmt.Println(i)
+	}
+}`
+	_ = code
+	New(code)
 }
 
-func New() {
+func New(code string) {
+	err := writeCodeToFile(code)
+
+	if err != nil {
+		panic(err)
+	}
+
 	cli, err := client.NewEnvClient()
 	if err != nil {
 		panic(err)
 	}
 
-	//x := getLogs(containers[1].ID, cli)
+	buildImage(cli)
 	x := buildContainer(cli)
 
 	y := getLogs(x, cli)
 	fmt.Println(y)
 
+	cleanup(cli, "test")
+
+}
+
+func buildImage(cli *client.Client) {
+
+	config := types.ImageBuildOptions{Tags: []string{"gotest"}}
+	createBuildContext()
+	buildContext, err := os.Open("./tmp/tar/go.tar")
+	if err != nil {
+		panic(err)
+	}
+	defer buildContext.Close()
+
+	br, err := cli.ImageBuild(context.Background(), buildContext, config)
+	if err != nil {
+		panic(err)
+	}
+	defer br.Body.Close()
+	fmt.Println(br, err)
+
+}
+
+func createBuildContext() {
+	file, err := os.Create("/home/jake/apps/gopherpun/runner/tmp/tar/go.tar")
+	if err != nil {
+		panic(err)
+	}
+	tw := tar.NewWriter(file)
+	defer tw.Close()
+
+	files := map[string][]byte{"Dockerfile": nil, "main.go": nil}
+	for k, v := range files {
+		a, err := ioutil.ReadFile("/home/jake/apps/gopherpun/runner/tmp/go/" + k)
+		v = a
+		if err != nil {
+			panic(err)
+		}
+		hdr := &tar.Header{Name: k, Mode: 0600, Size: int64(len(v))}
+
+		if err := tw.WriteHeader(hdr); err != nil {
+			panic(err)
+		}
+
+		if _, err := tw.Write([]byte(v)); err != nil {
+			panic(err)
+		}
+
+	}
+
+}
+
+func cleanup(cli *client.Client, id string) error {
+	config := types.ContainerRemoveOptions{Force: true}
+	ctx := context.Background()
+
+	err := cli.ContainerRemove(ctx, id, config)
+
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func writeCodeToFile(code string) error {
+	f, err := os.OpenFile("/home/jake/apps/gopherpun/runner/tmp/go/main.go", os.O_RDWR, 0777)
+
+	if err != nil {
+		return err
+	}
+
+	if _, err := f.WriteString(code); err != nil {
+		return err
+	}
+
+	return nil
 }
 
 func buildContainer(cli *client.Client) string {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	config := container.Config{Cmd: []string{"echo", "hello", "world"}, Image: "alpine"}
+	config := container.Config{Image: "gotest"}
 	hostconfig := container.HostConfig{}
 	netconfig := network.NetworkingConfig{}
 
